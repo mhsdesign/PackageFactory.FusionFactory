@@ -1,0 +1,22 @@
+prototype(PackageFactory.FusionFactory:FusionObjectDtoRenderer) < prototype(Neos.Fusion:Component) {
+  fusionObjectDto = ${fusionObjectDto}
+
+  renderer = Neos.Fusion:Renderer {
+    type = ${props.fusionObjectDto.name || "[fusionObjectDto is empty]"}
+    element.@apply.arguments = Neos.Fusion:Map {
+      items = ${props.fusionObjectDto.arguments}
+      itemRenderer = Neos.Fusion:Case {
+        isFusionObjectDto {
+          condition = ${Type.instance(item, "PackageFactory\\FusionFactory\\Domain\\FusionObjectDto")}
+          renderer = PackageFactory.FusionFactory:FusionObjectDtoRenderer {
+            fusionObjectDto = ${item}
+          }
+        }
+        default {
+          condition = true
+          renderer = ${item}
+        }
+      }
+    }
+  }
+}
