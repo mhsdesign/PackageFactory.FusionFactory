@@ -2,18 +2,16 @@
 
 declare(strict_types=1);
 
-namespace PackageFactory\FusionFactory\Domain;
+namespace PackageFactory\FusionFactory\Application;
 
-use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
-use Neos\Flow\Core\Bootstrap;
-use Neos\Flow\Mvc\Controller\ControllerContext;
 use Neos\Fusion\Core\RuntimeFactory;
-use Neos\Neos\Domain\Model\Site;
 use Neos\Neos\Domain\Model\SiteNodeName;
 use Neos\Neos\Domain\Repository\SiteRepository;
 use Neos\Neos\Domain\Service\FusionService;
-use Neos\Neos\Domain\Service\SiteNodeUtility;
+use PackageFactory\ComponentFactory\Application\RenderingStuff;
 use PackageFactory\ComponentFactory\Domain\ComponentFactory;
+use PackageFactory\ComponentFactory\Domain\CurrentControllerContext;
+use PackageFactory\FusionFactory\Domain\FusionObjectDto;
 
 function component(string $name, array $props): FusionObjectDto
 {
@@ -25,30 +23,26 @@ function fusionRenderer(\Closure|ComponentFactory $factory): ComponentFactory
     if ($factory instanceof \Closure) {
         $factory = ComponentFactory::fromClosure($factory);
     }
-    return $factory->wrap(function (FusionObjectDto $fusionObjectDto, Node $node, ControllerContext $controllerContext) use ($factory) {
-        return render($fusionObjectDto, $node, $controllerContext);
+    return $factory->wrap(function (FusionObjectDto $output, RenderingStuff $renderingStuff) {
+        return render($output, $renderingStuff);
     });
 }
 
-function render(FusionObjectDto $fusionObjectDto, Site|Node $siteOrNode, ControllerContext $controllerContext): mixed
+function render(FusionObjectDto $fusionObjectDto, RenderingStuff $renderingStuff): mixed
 {
-    $objectManager = Bootstrap::$staticObjectManager;
-
-    if (!$siteOrNode instanceof Site) {
-        $siteNode = $objectManager->get(SiteNodeUtility::class)->findSiteNode($siteOrNode);
-        if ($siteNode->nodeName === null) {
-            throw new \Exception(sprintf('Site node "%s" is unnamed', $siteNode->nodeAggregateId->value), 1681286146);
-        }
-        $site = $objectManager->get(SiteRepository::class)->findOneByNodeName(SiteNodeName::fromNodeName($siteNode->nodeName))
-            ?? throw new \Exception(sprintf('No site found for nodeNodeName "%s"', $siteNode->nodeName->value), 1677245517);
-    } else {
-        $site = $siteOrNode;
+    if ($renderingStuff->siteNode->nodeName === null) {
+        throw new \Exception(sprintf('Site node "%s" is unnamed', $renderingStuff->siteNode->nodeAggregateId->value), 1681286146);
     }
+    $site = $renderingStuff->di->get(SiteRepository::class)->findOneByNodeName(SiteNodeName::fromNodeName($renderingStuff->siteNode->nodeName))
+        ?? throw new \Exception(sprintf('No site found for nodeNodeName "%s"', $renderingStuff->siteNode->nodeName->value), 1677245517);
 
-    $runtime = $objectManager->get(RuntimeFactory::class)->createFromConfiguration(
-        $objectManager->get(FusionService::class)->createFusionConfigurationFromSite($site),
-        $controllerContext
+    // todo cache runtime ...
+    $runtime = $renderingStuff->di->get(RuntimeFactory::class)->createFromConfiguration(
+        $renderingStuff->di->get(FusionService::class)->createFusionConfigurationFromSite($site),
+        CurrentControllerContext::get()
     );
+
+    $runtime->setEnableContentCache(false);
 
     $runtime->pushContext('fusionObjectDto', $fusionObjectDto);
 
